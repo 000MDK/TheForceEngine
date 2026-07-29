@@ -142,7 +142,7 @@ namespace TFE_DarkForces
 		SERIALIZE(SaveVersionInit, hasTask, 0);
 		if (hasTask && s_hitEffectTask)
 		{
-			const bool resetIP = s_sVersion < SaveVersionHitEffectTaskUpdate;
+			const bool resetIP = s_sVersion < SaveVersionHitEffectTaskUpdate2;
 			task_serializeState(stream, s_hitEffectTask, nullptr, nullptr, resetIP);
 		}
 	}
