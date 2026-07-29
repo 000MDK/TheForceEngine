@@ -78,6 +78,86 @@ namespace TFE_RenderBackend
 	static GLuint s_globalVAO = 0;
 	static bool s_isMacOS = false;
 
+
+
+	static void showGpuWarningDialog(const char* rendererName)
+	{
+		// Don't show the warning if muted - this is a permanent change unless settings are wiped. 
+		TFE_Settings_Graphics* graphicsSettings = TFE_Settings::getGraphicsSettings();
+		if (graphicsSettings->suppressGPUWarnings) return;
+
+		char msg[512];
+		snprintf(msg, sizeof(msg),
+			"Integrated GPU detected: %s\n\nThis engine is optimized for discrete GPUs. "
+			"\nContinuing may result in poor performance or rendering issues.",
+			rendererName);
+
+		const SDL_MessageBoxButtonData buttons[] =
+		{
+			{ SDL_MESSAGEBOX_BUTTON_RETURNKEY_DEFAULT, 0, "Continue" },
+			{ 0,                                       1, "Always Ignore" },
+			{ SDL_MESSAGEBOX_BUTTON_ESCAPEKEY_DEFAULT, 2, "Quit" },
+		};
+
+		const SDL_MessageBoxData data =
+		{
+			SDL_MESSAGEBOX_WARNING,
+			nullptr,
+			"Graphics Warning",
+			msg,
+			SDL_arraysize(buttons),
+			buttons,
+			nullptr
+		};
+
+		int buttonId = 0;
+		if (SDL_ShowMessageBox(&data, &buttonId) < 0)
+		{
+			TFE_System::logWrite(LOG_ERROR, "RenderBackend", "SDL_ShowMessageBox failed: %s", SDL_GetError());
+			return;
+		}
+
+		if (buttonId == 1)
+		{
+			TFE_System::logWrite(LOG_MSG, "RenderBackend", "User chose to always ignore warnings due to integrated GPU.");
+			graphicsSettings->suppressGPUWarnings = true;			
+		}
+		else if (buttonId == 2)
+		{
+			TFE_System::logWrite(LOG_ERROR, "RenderBackend", "User chose to quit due to integrated GPU.");
+			exit(1);
+		}
+	}
+
+	static bool isIntegratedgraphics(string renderer)
+	{
+		std::string lowerRenderer = renderer;
+		std::transform(lowerRenderer.begin(), lowerRenderer.end(), lowerRenderer.begin(), ::tolower);
+
+		// List of keywords that indicate integrated graphics.
+		// This is not an exhaustive list , but covers the most common integrated graphics.
+		const std::vector<std::string> integratedKeywords = { 
+			"intel(r) uhd",
+			"intel(r) hd",
+			"intel(r) iris",
+			"intel arc graphics", 
+			"amd radeon(tm) graphics",
+			"radeon vega",
+			"radeon(tm) vega"
+		};
+		
+		// Check if the renderer string contains any of the integrated graphics keywords
+		for (const auto& keyword : integratedKeywords)
+		{
+			if (lowerRenderer.find(keyword) != std::string::npos)
+			{
+				return true;
+			}
+		}
+
+		return false;
+	}
+
 	static void printGLInfo(void)
 	{
 		const char* gl_ver = (const char *)glGetString(GL_VERSION);
@@ -88,6 +168,11 @@ namespace TFE_RenderBackend
 		}
 		const char* gl_ren = (const char *)glGetString(GL_RENDERER);
 		TFE_System::logWrite(LOG_MSG, "RenderBackend", "GL Info: %s, %s", gl_ver, gl_ren);
+
+		if (isIntegratedgraphics(gl_ren))
+		{
+			showGpuWarningDialog(gl_ren);
+		}
 	}
 
 	bool isWindowMinimized()
