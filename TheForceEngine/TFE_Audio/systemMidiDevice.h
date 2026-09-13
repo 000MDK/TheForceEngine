@@ -24,9 +24,8 @@ namespace TFE_Audio
 		// that disproportionately crushed deliberately quiet channels (e.g. a soft
 		// background/echo layer) toward zero, especially once the music volume slider was
 		// below 100%. That data corruption is gone: real/external MIDI devices now receive
-		// exactly the same untouched CC7 bytes SF2 and CLAP always have. See
-		// README_CLAP_PATCH.md, "Fix: quiet/echo notes crushed by the CC7 volume rewrite",
-		// for the investigation that led here.
+		// exactly the same untouched CC7 bytes SF2 and CLAP always have.
+
 		bool hasGlobalVolumeCtrl() override { return true; }
 		const char* getName() override;
 
