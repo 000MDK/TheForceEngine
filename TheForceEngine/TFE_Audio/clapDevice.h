@@ -22,8 +22,24 @@ namespace TFE_Audio
 		MidiDeviceType getType() override { return MIDI_TYPE_CLAP; }
 
 		void exit() override;
-		// Volume is applied by the host by scaling the rendered output, since not
-		// all CLAP instruments expose a standard "master volume" parameter.
+		// true, matching SoundFontDevice (SF2): volume is applied as a post-render
+		// multiply on the mixed audio buffer, and the per-channel MIDI CC7 (Channel
+		// Volume) bytes reaching the plugin are left exactly as the song data set them.
+		//
+		// This was briefly changed to false (matching SystemMidiDevice) in an earlier
+		// version of this patch, which was a regression: with hasGlobalVolumeCtrl()
+		// == false, TFE_MidiPlayer::sendMessageDirect() rewrites every outgoing CC7
+		// byte to `u8(originalCC7 * masterVolumeScaled)` before sending it (see
+		// midiPlayer.cpp). That multiply-and-truncate crushes deliberately quiet
+		// channels (e.g. a soft background/echo layer) disproportionately, especially
+		// when the music volume slider is below 100% - audible as missing/too-quiet
+		// notes. SoundFontDevice never goes through that rewrite (hasGlobalVolumeCtrl()
+		// == true there too), which is why SF2 sounds correct while both a real Roland
+		// unit (SystemMidiDevice, hasGlobalVolumeCtrl() == false) and CLAP-with-the-
+		// earlier-regression showed the identical defect. See README_CLAP_PATCH.md,
+		// "Fix: quiet/echo notes crushed by the CC7 volume rewrite", for the full
+		// writeup - this is a pre-existing TFE limitation for any MidiDevice with
+		// hasGlobalVolumeCtrl() == false, not something introduced by CLAP support.
 		bool hasGlobalVolumeCtrl() override { return true; }
 		const char* getName() override;
 
@@ -39,6 +55,7 @@ namespace TFE_Audio
 		void message(const u8* msg, u32 len) override;
 
 		void noteAllOff() override;
+		// Sets the post-render gain applied in render() - see hasGlobalVolumeCtrl() above.
 		void setVolume(f32 volume) override;
 
 		// The "output" list for the CLAP device is the list of CLAP plugins found
@@ -73,7 +90,7 @@ namespace TFE_Audio
 		bool m_processing = false;
 
 		s32 m_activeOutput = 0;	// 0 = "Disabled".
-		f32 m_volume = 1.0f;
+		f32 m_volume = 1.0f;	// Post-render gain, set via setVolume() - see hasGlobalVolumeCtrl() above.
 		std::string m_activeName = "Disabled";
 
 		// Event queue design: queued events are split into two backing arrays (short
